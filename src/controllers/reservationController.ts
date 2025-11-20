@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { ReservationData, VapiWebhookResponse } from '../types/vapi';
+import { theForkScraper } from '../services/theForkScraper';
 
 /**
  * Controller for handling completed reservations
@@ -43,28 +44,55 @@ export const completeReservation = async (req: Request, res: Response) => {
     }
 
     console.log('✓ All required fields present');
+    console.log('✓ Creating reservation with TheFork scraper...');
 
-    // TODO: When API is available, create the reservation in the restaurant system
-    // Example:
-    // const reservationResult = await restaurantAPI.createReservation({
-    //   date: reservationData.date,
-    //   time: reservationData.time,
-    //   numberOfGuests: reservationData.people,
-    //   customerName: reservationData.full_name,
-    //   customerPhone: customerPhone,
-    //   honorific: reservationData.honorific,
-    //   hasBaby: reservationData.baby,
-    //   allergies: reservationData.allergies,
-    //   specialRequests: reservationData.special_requests
-    // });
+    // Parse customer name
+    const nameParts = reservationData.full_name.trim().split(' ');
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ') || nameParts[0]; // Use first name as last if only one name provided
 
-    // Simulate successful reservation creation
-    console.log('✓ Simulating reservation creation...');
-    console.log('✓ Reservation would be created with this data');
+    // Build special requests string
+    let specialRequests = reservationData.special_requests || '';
+    if (reservationData.baby) {
+      specialRequests = specialRequests
+        ? `${specialRequests}. Llegará con bebé.`
+        : 'Llegará con bebé.';
+    }
+    if (reservationData.allergies && reservationData.allergies !== 'none') {
+      specialRequests = specialRequests
+        ? `${specialRequests}. Alergias: ${reservationData.allergies}`
+        : `Alergias: ${reservationData.allergies}`;
+    }
+
+    // Make reservation using TheFork scraper
+    const reservationResult = await theForkScraper.makeReservation(
+      reservationData.date,
+      reservationData.time,
+      reservationData.people,
+      {
+        firstName,
+        lastName,
+        email: 'reservations@haciendalakran.com', // Use restaurant email or extract from structured data
+        phone: customerPhone,
+        honorific: reservationData.honorific,
+        specialRequests: specialRequests || undefined
+      }
+    );
+
+    if (!reservationResult.success) {
+      console.error('✗ Reservation failed:', reservationResult.message);
+      const response: VapiWebhookResponse = {
+        success: false,
+        message: `Failed to create reservation: ${reservationResult.message}`
+      };
+      return res.status(500).json(response);
+    }
+
+    console.log('✓ Reservation created successfully!');
 
     // Prepare summary for logging
     const summary = {
-      reservationId: `ALAKRAN-${Date.now()}`, // Simulated ID
+      reservationId: reservationResult.confirmationNumber || `ALAKRAN-${Date.now()}`,
       customer: `${reservationData.honorific} ${reservationData.full_name}`,
       phoneNumber: customerPhone,
       dateTime: `${reservationData.date} at ${reservationData.time}`,
@@ -72,8 +100,9 @@ export const completeReservation = async (req: Request, res: Response) => {
       hasBaby: reservationData.baby,
       allergies: reservationData.allergies || 'None',
       specialRequests: reservationData.special_requests || 'None',
-      status: 'pending_confirmation',
-      createdAt: new Date().toISOString()
+      status: 'confirmed',
+      createdAt: new Date().toISOString(),
+      source: 'TheFork Widget'
     };
 
     console.log('\n--- Reservation Summary ---');
@@ -83,7 +112,7 @@ export const completeReservation = async (req: Request, res: Response) => {
     // Send success response
     const response: VapiWebhookResponse = {
       success: true,
-      message: 'Reservation received successfully',
+      message: 'Reservation confirmed successfully',
       data: summary
     };
 

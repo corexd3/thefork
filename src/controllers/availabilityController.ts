@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { CheckAvailabilityParams, VapiToolResponse } from '../types/vapi';
+import { theForkScraper } from '../services/theForkScraper';
 
 /**
  * Controller for checking restaurant availability
@@ -18,13 +19,10 @@ export const checkAvailability = async (req: Request, res: Response) => {
     console.log('- Hora (Time):', params.hora);
     console.log('- Personas (People):', params.personas);
 
-    // TODO: When API is available, integrate with restaurant reservation system
-    // For now, we'll simulate availability check and log the data
-
     // Validate the received data format
     const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(params.fecha);
     const isValidTime = /^\d{2}:\d{2}$/.test(params.hora);
-    const isValidPeople = params.personas > 0 && params.personas < 100;
+    const isValidPeople = params.personas > 0 && params.personas <= 40;
 
     if (!isValidDate || !isValidTime || !isValidPeople) {
       console.error('Invalid parameters received!');
@@ -37,15 +35,29 @@ export const checkAvailability = async (req: Request, res: Response) => {
       return res.status(200).json(response);
     }
 
-    // Simulate availability check
     console.log('✓ Data validation passed');
-    console.log('✓ Simulating availability check...');
+    console.log('✓ Checking availability with TheFork scraper...');
 
-    // TODO: Replace this with actual API call
-    // const availability = await restaurantAPI.checkAvailability(params);
+    // Check availability using TheFork scraper
+    const availability = await theForkScraper.checkAvailability(
+      params.fecha,
+      params.hora,
+      params.personas
+    );
 
-    // For now, return a success message to Vapi
-    const availabilityMessage = `Perfecto, tenemos disponibilidad para ${params.personas} personas el ${params.fecha} a las ${params.hora}. ¿Desea confirmar la reserva?`;
+    let availabilityMessage: string;
+
+    if (availability.available) {
+      // Time is available
+      availabilityMessage = `Perfecto, tenemos disponibilidad para ${params.personas} personas el ${params.fecha} a las ${params.hora}.`;
+    } else if (availability.availableTimes && availability.availableTimes.length > 0) {
+      // Date is available but not this specific time - offer alternatives
+      const timesList = availability.availableTimes.slice(0, 3).join(', ');
+      availabilityMessage = `Lo siento, no tenemos disponibilidad a las ${params.hora}. Tenemos disponibilidad a las siguientes horas: ${timesList}. ¿Le gustaría reservar en alguno de estos horarios?`;
+    } else {
+      // No availability at all for this date
+      availabilityMessage = `Lo siento, no tenemos disponibilidad para ${params.personas} personas el ${params.fecha}. ¿Le gustaría probar con otra fecha?`;
+    }
 
     const response: VapiToolResponse = {
       results: [{
@@ -59,10 +71,15 @@ export const checkAvailability = async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Error in checkAvailability:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
+
+    // Return a user-friendly error message to Vapi
+    const response: VapiToolResponse = {
+      results: [{
+        toolCallId: req.body.message?.functionCall?.id || 'unknown',
+        result: 'Lo siento, hubo un problema al verificar la disponibilidad. Por favor, intente nuevamente en un momento.'
+      }]
+    };
+
+    res.status(200).json(response);
   }
 };
