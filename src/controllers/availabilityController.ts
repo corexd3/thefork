@@ -19,8 +19,15 @@ export const checkAvailability = async (req: Request, res: Response) => {
     console.log('- Hora (Time):', params.hora);
     console.log('- Personas (People):', params.personas);
 
+    // FIX: If Vapi sends wrong year (2023/2024), auto-correct to 2025
+    let correctedDate = params.fecha;
+    if (params.fecha.startsWith('2023') || params.fecha.startsWith('2024')) {
+      correctedDate = params.fecha.replace(/^202[34]/, '2025');
+      console.log('⚠️  Auto-corrected year from', params.fecha, 'to', correctedDate);
+    }
+
     // Validate the received data format
-    const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(params.fecha);
+    const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(correctedDate);
     const isValidTime = /^\d{2}:\d{2}$/.test(params.hora);
     const isValidPeople = params.personas > 0 && params.personas <= 40;
 
@@ -40,7 +47,7 @@ export const checkAvailability = async (req: Request, res: Response) => {
 
     // Check availability using TheFork scraper
     const availability = await theForkScraper.checkAvailability(
-      params.fecha,
+      correctedDate,
       params.hora,
       params.personas
     );

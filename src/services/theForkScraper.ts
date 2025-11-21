@@ -27,7 +27,7 @@ export class TheForkScraper {
   private async initBrowser(): Promise<Browser> {
     if (!this.browser) {
       this.browser = await chromium.launch({
-        headless: true,
+        headless: false,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       });
     }
@@ -296,8 +296,8 @@ export class TheForkScraper {
       // Step 4: Fill contact information
       await this.fillContactInfo(page, customerInfo);
 
-      // Step 5: Submit reservation
-      const confirmationNumber = await this.submitReservation(page);
+      // Step 5: Submit reservation (handles Step 1 -> Step 2 -> Confirm)
+      const confirmationNumber = await this.submitReservation(page, customerInfo);
 
       if (confirmationNumber) {
         return {
@@ -355,49 +355,85 @@ export class TheForkScraper {
   }
 
   /**
-   * Fill in contact information form
+   * Fill in contact information form (Step 1: Reservation Details)
    */
   private async fillContactInfo(page: Page, customerInfo: any): Promise<void> {
     try {
-      console.log('[TheFork] Filling contact information');
+      console.log('[TheFork] Step 1: Filling reservation details...');
 
-      // Wait for contact form to appear
+      // Wait for form to be ready - wait for the first name input to appear
+      await page.waitForSelector('#contact-information-firstName', { timeout: 10000 });
       await page.waitForTimeout(2000);
 
-      // Fill first name
-      const firstNameInput = await page.$('input[name="firstName"], input#firstName, [data-testid="contact-firstname"]');
-      if (firstNameInput) {
-        await firstNameInput.fill(customerInfo.firstName);
+      // Select civility (Mr/Ms/Mx) - always select one, default to 'mr'
+      const honorificMap: { [key: string]: string } = {
+        'sr': 'mr',
+        'sr.': 'mr',
+        'mr': 'mr',
+        'mr.': 'mr',
+        'sra': 'mrs',
+        'sra.': 'mrs',
+        'mrs': 'mrs',
+        'mrs.': 'mrs',
+        'ms': 'mrs',
+        'ms.': 'mrs',
+        'mx': 'mx',
+        'mx.': 'mx'
+      };
+      const civilityValue = customerInfo.honorific
+        ? (honorificMap[customerInfo.honorific.toLowerCase()] || 'mr')
+        : 'mr';
+
+      // Click the civility radio button using the label
+      try {
+        await page.locator(`label[for="contact-information-${civilityValue}"]`).click();
+        console.log(`[TheFork] Selected civility: ${civilityValue}`);
+      } catch (e) {
+        console.log(`[TheFork] Could not select civility, continuing...`);
       }
+      await page.waitForTimeout(500);
+
+      // Fill first name using locator and pressSequentially (simulates keyboard input)
+      const firstNameInput = page.locator('#contact-information-firstName');
+      await firstNameInput.click();
+      await firstNameInput.clear();
+      await firstNameInput.pressSequentially(customerInfo.firstName, { delay: 50 });
+      console.log(`[TheFork] First name filled: ${customerInfo.firstName}`);
+      await page.waitForTimeout(500);
 
       // Fill last name
-      const lastNameInput = await page.$('input[name="lastName"], input#lastName, [data-testid="contact-lastname"]');
-      if (lastNameInput) {
-        await lastNameInput.fill(customerInfo.lastName);
-      }
+      const lastNameInput = page.locator('#contact-information-lastName');
+      await lastNameInput.click();
+      await lastNameInput.clear();
+      await lastNameInput.pressSequentially(customerInfo.lastName, { delay: 50 });
+      console.log(`[TheFork] Last name filled: ${customerInfo.lastName}`);
+      await page.waitForTimeout(500);
 
       // Fill email
-      const emailInput = await page.$('input[name="email"], input[type="email"], [data-testid="contact-email"]');
-      if (emailInput) {
-        await emailInput.fill(customerInfo.email);
-      }
+      const emailInput = page.locator('#contact-information-email');
+      await emailInput.click();
+      await emailInput.clear();
+      await emailInput.pressSequentially(customerInfo.email, { delay: 50 });
+      console.log(`[TheFork] Email filled: ${customerInfo.email}`);
+      await page.waitForTimeout(500);
 
-      // Fill phone
-      const phoneInput = await page.$('input[name="phone"], input[type="tel"], [data-testid="contact-phone"]');
-      if (phoneInput) {
-        await phoneInput.fill(customerInfo.phone);
+      // Fill phone number (remove country code prefix since +34 is already selected)
+      let phoneNumber = customerInfo.phone;
+      if (phoneNumber.startsWith('+34')) {
+        phoneNumber = phoneNumber.substring(3);
+      } else if (phoneNumber.startsWith('34')) {
+        phoneNumber = phoneNumber.substring(2);
       }
+      const phoneInput = page.locator('#contact-information-phone-number');
+      await phoneInput.click();
+      await phoneInput.clear();
+      await phoneInput.pressSequentially(phoneNumber, { delay: 50 });
+      console.log(`[TheFork] Phone filled: ${phoneNumber}`);
 
-      // Fill special requests if provided
-      if (customerInfo.specialRequests) {
-        const specialRequestsInput = await page.$('textarea[name="specialRequests"], textarea[data-testid="contact-special-requests"]');
-        if (specialRequestsInput) {
-          await specialRequestsInput.fill(customerInfo.specialRequests);
-        }
-      }
+      console.log('[TheFork] Step 1 complete: Reservation details filled');
 
-      console.log('[TheFork] Contact information filled');
-      await page.waitForTimeout(1000);
+      // Wait for form validation to complete
+      await page.waitForTimeout(2000);
     } catch (error) {
       console.error('[TheFork] Error filling contact info:', error);
       throw error;
@@ -405,41 +441,133 @@ export class TheForkScraper {
   }
 
   /**
-   * Submit the reservation and get confirmation number
+   * Fill additional information (Step 2)
    */
-  private async submitReservation(page: Page): Promise<string | null> {
+  private async fillAdditionalInfo(page: Page, customerInfo: any): Promise<void> {
     try {
-      console.log('[TheFork] Submitting reservation');
+      console.log('[TheFork] Step 2: Filling additional information...');
 
-      // Find and click the submit button
-      const submitButton = await page.$('button[type="submit"], [data-testid="contact-submit"], button:has-text("Confirm")');
-      if (!submitButton) {
-        throw new Error('Submit button not found');
+      // Wait for additional info form to appear
+      await page.waitForSelector('[data-testid="submit-booking-button"]', { timeout: 10000 });
+      await page.waitForTimeout(1000);
+
+      // Fill baby field if provided (React Select dropdown)
+      if (customerInfo.baby !== undefined) {
+        try {
+          // Find the first custom field container (baby dropdown) and click its control
+          const babyDropdown = page.locator('[data-testid="custom-field"]').first();
+          const babyControl = babyDropdown.locator('.chili-single-select__control');
+          await babyControl.click();
+          console.log('[TheFork] Clicked baby dropdown control');
+          await page.waitForTimeout(1000);
+
+          // Select "Si" or "No" based on the value
+          const optionText = customerInfo.baby ? 'Si' : 'No';
+
+          // Click directly on the option in the dropdown menu
+          const option = page.locator(`div[class*="option"]:has-text("${optionText}")`).first();
+          await option.click();
+          console.log(`[TheFork] Baby option selected: ${optionText}`);
+          await page.waitForTimeout(500);
+        } catch (e) {
+          console.log(`[TheFork] Could not select baby option: ${e}`);
+        }
       }
 
-      await submitButton.click();
-      console.log('[TheFork] Clicked submit button');
+      // Fill allergies field if provided
+      if (customerInfo.allergies) {
+        try {
+          const allergiesInput = page.locator('[data-testid="more-information-optionalCustomFields.48d65063-d4a7-41d4-bea2-bf4d175b9984"]');
+          await allergiesInput.click();
+          await allergiesInput.clear();
+          await allergiesInput.pressSequentially(customerInfo.allergies, { delay: 30 });
+          console.log(`[TheFork] Allergies filled: ${customerInfo.allergies}`);
+          await page.waitForTimeout(300);
+        } catch (e) {
+          console.log(`[TheFork] Could not fill allergies: ${e}`);
+        }
+      }
+
+      // Fill special requests if provided
+      if (customerInfo.specialRequests) {
+        try {
+          const specialRequestsInput = page.locator('[data-testid="contact-special-requests-specialRequest"]');
+          await specialRequestsInput.click();
+          await specialRequestsInput.clear();
+          await specialRequestsInput.pressSequentially(customerInfo.specialRequests, { delay: 30 });
+          console.log(`[TheFork] Special requests filled: ${customerInfo.specialRequests}`);
+          await page.waitForTimeout(300);
+        } catch (e) {
+          console.log(`[TheFork] Could not fill special requests: ${e}`);
+        }
+      }
+
+      console.log('[TheFork] Step 2 complete: Additional information filled');
+      await page.waitForTimeout(1000);
+    } catch (error) {
+      console.error('[TheFork] Error filling additional info:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Submit the reservation (handles multi-step form)
+   */
+  private async submitReservation(page: Page, customerInfo: any): Promise<string | null> {
+    try {
+      console.log('[TheFork] Submitting reservation (Step 1 -> Step 2 -> Confirm)');
+
+      // Step 1: Click "Next" button to go to Additional Information
+      const nextButton = await page.$('[data-testid="contact-form-next-button"]');
+      if (!nextButton) {
+        throw new Error('Next button not found on reservation details page');
+      }
+
+      // Wait for button to be enabled
+      await page.waitForTimeout(1000);
+      await nextButton.click();
+      console.log('[TheFork] Clicked Next button (Step 1 -> Step 2)');
+
+      // Wait for Step 2 (Additional Information) to load
+      await page.waitForTimeout(2000);
+
+      // Fill additional information (Step 2)
+      await this.fillAdditionalInfo(page, customerInfo);
+
+      // Step 2: Click "Book" button to submit reservation
+      const bookButton = await page.$('[data-testid="submit-booking-button"]');
+      if (!bookButton) {
+        throw new Error('Book button not found on additional information page');
+      }
+
+      await bookButton.click();
+      console.log('[TheFork] Clicked Book button (Step 2 -> Confirmation)');
 
       // Wait for confirmation page
       await page.waitForTimeout(3000);
 
-      // Try to extract confirmation number from the page
-      // This will depend on TheFork's confirmation page structure
-      const confirmationText = await page.textContent('body');
+      // Check if we're on the success page
+      const successHeading = await page.$('[data-testid="wizard-layout-success"]');
+      if (successHeading) {
+        console.log('[TheFork] Reservation confirmed! Success page displayed.');
 
-      // Look for patterns like "Confirmation #12345" or "Booking ID: 12345"
-      const confirmationMatch = confirmationText?.match(/(?:confirmation|booking|reservation)[\s#:]+([A-Z0-9-]+)/i);
-
-      if (confirmationMatch) {
-        const confirmationNumber = confirmationMatch[1];
-        console.log(`[TheFork] Confirmation number: ${confirmationNumber}`);
-        return confirmationNumber;
+        // Generate confirmation ID
+        const confirmationId = `ALAKRAN-${Date.now()}`;
+        console.log(`[TheFork] Confirmation ID: ${confirmationId}`);
+        return confirmationId;
       }
 
-      // If no specific confirmation number found, return a timestamp-based ID
-      const fallbackId = `ALAKRAN-${Date.now()}`;
-      console.log(`[TheFork] No confirmation number found, using fallback: ${fallbackId}`);
-      return fallbackId;
+      // If no success page, check page content
+      const confirmationText = await page.textContent('body');
+      if (confirmationText?.toLowerCase().includes('confirmed') ||
+          confirmationText?.toLowerCase().includes('confirmation')) {
+        const confirmationId = `ALAKRAN-${Date.now()}`;
+        console.log(`[TheFork] Confirmation detected. ID: ${confirmationId}`);
+        return confirmationId;
+      }
+
+      console.log('[TheFork] Could not confirm reservation success');
+      return null;
 
     } catch (error) {
       console.error('[TheFork] Error submitting reservation:', error);

@@ -55,9 +55,9 @@ async function testReservation() {
       '20:00',
       2,
       {
-        firstName: 'Test',
-        lastName: 'User',
-        email: 'test@example.com',
+        firstName: 'Hacienda',
+        lastName: 'Lakran',
+        email: 'hola@haciendalakran.com',
         phone: '+34655720245',
         honorific: 'Sr.',
         specialRequests: 'Test reservation from automated scraper'
