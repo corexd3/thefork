@@ -26,24 +26,27 @@ curl -X POST http://localhost:3000/webhooks/reservation-complete \
           "number": "+34655720245"
         }
       },
-      "structuredData": {
-        "reservation": {
-          "date": "2025-11-27",
-          "time": "20:00",
-          "people": 4,
-          "full_name": "Juan Pérez",
-          "honorific": "Sr.",
-          "baby": false,
-          "allergies": "gluten",
-          "special_requests": "mesa junto a la ventana"
-        }
+      "analysis": {
+        "summary": "The user called to make a reservation for November 27th at 8 PM for four people under the name Juan.",
+        "structuredData": {
+          "reservation": {
+            "date": "2025-11-27",
+            "time": "20:00",
+            "people": 4,
+            "full_name": "Juan Pérez",
+            "honorific": "Sr.",
+            "baby": false,
+            "allergies": "gluten",
+            "special_requests": "mesa junto a la ventana"
+          }
+        },
+        "successEvaluation": "true"
       },
       "artifact": {
         "messagesOpenAIFormatted": [],
         "messages": []
       },
       "transcript": "AI: Hola, soy Marcos, asistente de ILA de la de la Hacienda de Alacrán. Qué te puedo ayudar hoy?\nUser: Gustaría hacer una reserva.\nAI: Claro, estaré encantado de ayudarte con eso. Para qué día y a qué hora te gustaría hacer la reserva, además cuántas personas vendrán\nUser: Para el 27 de noviembre las 8 de la tarde para 4 personas. A nombre de Juan.",
-      "summary": "The user called to make a reservation for November 27th at 8 PM for four people under the name Juan.",
       "startedAt": "2025-11-20T12:33:20.740Z",
       "endedAt": "2025-11-20T12:35:28.338Z",
       "endedReason": "customer-ended-call",

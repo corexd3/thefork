@@ -27,7 +27,7 @@ export class TheForkScraper {
   private async initBrowser(): Promise<Browser> {
     if (!this.browser) {
       this.browser = await chromium.launch({
-        headless: false,
+        headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       });
     }
@@ -290,13 +290,31 @@ export class TheForkScraper {
       // Step 2: Select people
       await this.selectPeople(page, people);
 
-      // Step 3: Select time
+      // Step 3: Check if time is available before trying to select it
+      const availableTimes = await this.getAvailableTimes(page);
+      if (availableTimes.length === 0) {
+        return {
+          success: false,
+          message: `No available times on ${date} for ${people} people.`
+        };
+      }
+
+      // Check if requested time is available
+      const isTimeAvailable = availableTimes.some(t => t === time);
+      if (!isTimeAvailable) {
+        return {
+          success: false,
+          message: `Time ${time} is not available. Available times: ${availableTimes.slice(0, 5).join(', ')}`
+        };
+      }
+
+      // Step 4: Select time (now we know it's available)
       await this.selectTime(page, time);
 
-      // Step 4: Fill contact information
+      // Step 5: Fill contact information
       await this.fillContactInfo(page, customerInfo);
 
-      // Step 5: Submit reservation (handles Step 1 -> Step 2 -> Confirm)
+      // Step 6: Submit reservation (handles Step 1 -> Step 2 -> Confirm)
       const confirmationNumber = await this.submitReservation(page, customerInfo);
 
       if (confirmationNumber) {

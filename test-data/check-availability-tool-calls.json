@@ -1,0 +1,18 @@
+{
+  "message": {
+    "type": "tool-calls",
+    "toolCalls": [
+      {
+        "id": "call_abc123",
+        "type": "function",
+        "function": {
+          "name": "checkAvailability",
+          "arguments": {
+            "date": "2025-11-27",
+            "people": 4
+          }
+        }
+      }
+    ]
+  }
+}

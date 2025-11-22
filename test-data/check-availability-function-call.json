@@ -1,0 +1,13 @@
+{
+  "message": {
+    "type": "function-call",
+    "functionCall": {
+      "id": "call_xyz789",
+      "name": "checkAvailability",
+      "parameters": {
+        "date": "2025-11-28",
+        "people": 2
+      }
+    }
+  }
+}

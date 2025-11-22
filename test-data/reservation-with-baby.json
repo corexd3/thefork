@@ -1,0 +1,47 @@
+{
+  "message": {
+    "type": "end-of-call-report",
+    "call": {
+      "id": "019aa141-4449-7775-8d7e-006f2a64e547",
+      "orgId": "6017716f-353f-428a-ae9f-103326badf6c",
+      "createdAt": "2025-11-22T14:00:00.000Z",
+      "updatedAt": "2025-11-22T14:05:00.000Z",
+      "type": "inboundPhoneCall",
+      "status": "ended",
+      "cost": 0,
+      "endedReason": "customer-ended-call",
+      "assistantId": "15867747-f6fd-42b3-a353-63687fecc2b4",
+      "phoneNumberId": "9285f1a8-b62f-4ff0-89ab-bdaa8f298d15",
+      "customer": {
+        "number": "+34612345678"
+      }
+    },
+    "analysis": {
+      "summary": "Customer wants a reservation for 2 people with a baby.",
+      "structuredData": {
+        "reservation": {
+          "date": "2025-11-29",
+          "time": "21:00",
+          "people": 2,
+          "full_name": "María García",
+          "honorific": "Sra.",
+          "baby": true,
+          "allergies": "none",
+          "special_requests": "trona para bebé"
+        }
+      },
+      "successEvaluation": "true"
+    },
+    "artifact": {
+      "messagesOpenAIFormatted": [],
+      "messages": []
+    },
+    "transcript": "...",
+    "startedAt": "2025-11-22T14:00:00.000Z",
+    "endedAt": "2025-11-22T14:05:00.000Z",
+    "endedReason": "customer-ended-call",
+    "cost": 0.15,
+    "durationSeconds": 120,
+    "durationMinutes": 2
+  }
+}

@@ -11,8 +11,9 @@ export const completeReservation = async (req: Request, res: Response) => {
     console.log('=== Reservation Completion Request ===');
 
     // Extract reservation data from Vapi webhook
+    // Note: structuredData is nested inside message.analysis.structuredData
     const { message } = req.body;
-    const reservationData: ReservationData = message.structuredData.reservation;
+    const reservationData: ReservationData = message.analysis.structuredData.reservation;
 
     // Extract customer phone number from call data
     const customerPhone = message.call?.customer?.number || 'Unknown';
@@ -28,8 +29,15 @@ export const completeReservation = async (req: Request, res: Response) => {
     console.log('- Allergies:', reservationData.allergies);
     console.log('- Special Requests:', reservationData.special_requests);
 
+    // FIX: If Vapi sends wrong year (2023/2024), auto-correct to 2025
+    let correctedDate = reservationData.date;
+    if (reservationData.date.startsWith('2023') || reservationData.date.startsWith('2024')) {
+      correctedDate = reservationData.date.replace(/^202[34]/, '2025');
+      console.log('⚠️  Auto-corrected year from', reservationData.date, 'to', correctedDate);
+    }
+
     // Validate the received data
-    const isComplete = reservationData.date &&
+    const isComplete = correctedDate &&
                        reservationData.time &&
                        reservationData.people > 0 &&
                        reservationData.full_name;
@@ -66,7 +74,7 @@ export const completeReservation = async (req: Request, res: Response) => {
 
     // Make reservation using TheFork scraper
     const reservationResult = await theForkScraper.makeReservation(
-      reservationData.date,
+      correctedDate,
       reservationData.time,
       reservationData.people,
       {
@@ -96,7 +104,7 @@ export const completeReservation = async (req: Request, res: Response) => {
       reservationId: reservationResult.confirmationNumber || `ALAKRAN-${Date.now()}`,
       customer: `${reservationData.honorific} ${reservationData.full_name}`,
       phoneNumber: customerPhone,
-      dateTime: `${reservationData.date} at ${reservationData.time}`,
+      dateTime: `${correctedDate} at ${reservationData.time}`,
       guestCount: reservationData.people,
       hasBaby: reservationData.baby,
       allergies: reservationData.allergies || 'None',
