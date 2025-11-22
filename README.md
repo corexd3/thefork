@@ -1,242 +1,232 @@
-# Hacienda Alakran Vapi Webhook Service
+# Hacienda Alakran - Servicio de Webhooks Vapi
 
-A Node.js/TypeScript service for handling Vapi webhooks for the Hacienda Alakran restaurant reservation system.
+Servicio Node.js/TypeScript para gestionar webhooks de Vapi para el sistema de reservas del restaurante Hacienda Alakran.
 
-## Overview
+## Descripción General
 
-This service provides two webhook endpoints that integrate with Vapi for automated phone reservations:
+Este servicio proporciona dos endpoints de webhook que se integran con Vapi para reservas telefónicas automatizadas:
 
-1. **Check Availability Webhook** - Called during conversations to check restaurant availability
-2. **Reservation Complete Webhook** - Called when a reservation conversation completes successfully
+1. **Webhook de Verificar Disponibilidad** - Se llama durante las conversaciones para verificar la disponibilidad del restaurante
+2. **Webhook de Reserva Completada** - Se llama cuando una conversación de reserva termina exitosamente
 
-## Features
+## Características
 
-- TypeScript for type safety
-- Zod schema validation for webhook payloads
-- Request/Response logging for debugging
-- Optional webhook secret authentication
-- Health check endpoint
-- Ready for restaurant API integration
+- TypeScript para seguridad de tipos
+- Validación de esquemas Zod para payloads de webhook
+- Registro de peticiones/respuestas para depuración
+- Autenticación opcional con secreto de webhook
+- Endpoint de verificación de salud
+- Integración con TheFork mediante Playwright
 
-## Prerequisites
+## Requisitos Previos
 
 - Node.js 18+
-- npm or yarn
+- npm o yarn
+- Cuenta de ngrok (para desarrollo/pruebas)
 
-## Installation
+## Instalación
 
-1. Install dependencies:
+1. Instalar dependencias:
 ```bash
 npm install
 ```
 
-2. Create environment file:
+2. Instalar navegador de Playwright:
+```bash
+npx playwright install chromium
+```
+
+3. Crear archivo de entorno:
 ```bash
 cp .env.example .env
 ```
 
-3. Configure your `.env` file (optional - see [VAPI_CONCEPTS.md](VAPI_CONCEPTS.md)):
+4. Configurar tu archivo `.env`:
 ```env
 PORT=3000
-NODE_ENV=development
+NODE_ENV=production
 
-# Optional: Only needed if making API calls TO Vapi (not required for webhooks)
-# VAPI_API_KEY=your_vapi_private_key_here
-
-# Optional: For webhook security (recommended for production)
-WEBHOOK_SECRET=your_webhook_secret_here
+# Opcional: Para seguridad de webhook (recomendado para producción)
+WEBHOOK_SECRET=tu_secreto_aqui
 ```
 
-**Note**: For webhooks that only RECEIVE data from Vapi, you don't need a Vapi API key!
+## Ejecutar el Servicio
 
-## Running the Service
-
-### Development mode (with auto-reload):
+### Modo desarrollo (con recarga automática):
 ```bash
 npm run dev
 ```
 
-### Production mode:
+### Modo producción:
 ```bash
 npm run build
 npm start
 ```
 
-The service will start on `http://localhost:3000` (or your configured PORT).
+El servicio iniciará en `http://localhost:3000` (o el PORT configurado).
 
-## ⚠️ CRITICAL: Making Your Service Accessible to Vapi
+## Exponer el Servicio con ngrok
 
-**localhost:3000 is NOT accessible from the internet!**
+**¡localhost:3000 NO es accesible desde internet!**
 
-Vapi's servers cannot reach your local machine. You MUST expose your service using one of these methods:
+Los servidores de Vapi no pueden alcanzar tu máquina local. Debes exponer tu servicio usando ngrok:
 
-### Option 1: ngrok (Recommended for Development/Testing)
-
-See [NGROK_SETUP.md](NGROK_SETUP.md) for detailed instructions.
-
-Quick start:
 ```bash
-# Terminal 1: Start your service
+# Terminal 1: Inicia tu servicio
 npm run dev
 
-# Terminal 2: Start ngrok
+# Terminal 2: Inicia ngrok
 ngrok http 3000
 ```
 
-Copy the HTTPS URL (e.g., `https://abc123.ngrok-free.app`) and use it in Vapi.
+Copia la URL HTTPS (ej: `https://abc123.ngrok-free.app`) y úsala en Vapi.
 
-### Option 2: Deploy to Production
+Para instrucciones detalladas, consulta [GUIDE.md](GUIDE.md).
 
-Deploy to a hosting platform for a permanent URL:
-- Railway, Render, Heroku, DigitalOcean, AWS, etc.
+## Endpoints de API
 
-See "Deployment" section below.
-
-## API Endpoints
-
-### Health Check
+### Verificación de Salud
 ```
 GET /health
 ```
 
-Returns the service health status.
+Devuelve el estado de salud del servicio.
 
-### Check Availability Webhook
+### Webhook de Verificar Disponibilidad
 ```
 POST /webhooks/check-availability
 ```
 
-Called by Vapi when the `checkAvailabilityALAKRAN` function is invoked during a conversation.
+Llamado por Vapi cuando se invoca la función `checkAvailabilityALAKRAN` durante una conversación.
 
-**Request Body:**
+**Cuerpo de Petición (formato tool-calls):**
 ```json
 {
   "message": {
-    "type": "function-call",
-    "functionCall": {
-      "name": "checkAvailabilityALAKRAN",
-      "parameters": {
-        "hora": "13:00",
-        "fecha": "2025-09-03",
-        "personas": 4
+    "type": "tool-calls",
+    "toolCalls": [{
+      "id": "call-id",
+      "type": "function",
+      "function": {
+        "name": "checkAvailabilityALAKRAN",
+        "arguments": {
+          "date": "2025-12-03",
+          "people": 4
+        }
       }
-    }
+    }]
   }
 }
 ```
 
-**Response:**
+**Respuesta:**
 ```json
 {
   "results": [{
-    "toolCallId": "string",
-    "result": "Perfecto, tenemos disponibilidad para 4 personas el 2025-09-03 a las 13:00..."
+    "toolCallId": "call-id",
+    "result": "Tenemos disponibilidad para 4 personas el 2025-12-03. Horarios disponibles: 13:30, 20:00, 21:00..."
   }]
 }
 ```
 
-### Reservation Complete Webhook
+### Webhook de Reserva Completada
 ```
 POST /webhooks/reservation-complete
 ```
 
-Called by Vapi at the end of a successful reservation conversation with structured data.
+Llamado por Vapi al final de una conversación de reserva exitosa con datos estructurados.
 
-**Request Body:**
+**Cuerpo de Petición:**
 ```json
 {
   "message": {
     "type": "end-of-call-report",
-    "structuredData": {
-      "reservation": {
-        "date": "2025-09-03",
-        "time": "13:00",
-        "people": 4,
-        "full_name": "Juan Pérez",
-        "honorific": "Sr.",
-        "baby": false,
-        "allergies": "gluten",
-        "special_requests": "mesa junto a la ventana"
+    "call": {
+      "customer": {
+        "number": "+34612345678"
+      }
+    },
+    "analysis": {
+      "structuredData": {
+        "reservation": {
+          "date": "2025-12-03",
+          "time": "20:00",
+          "people": 4,
+          "full_name": "Juan Pérez",
+          "honorific": "Sr.",
+          "baby": false,
+          "allergies": "gluten",
+          "special_requests": "mesa junto a la ventana"
+        }
       }
     }
   }
 }
 ```
 
-**Response:**
+**Respuesta:**
 ```json
 {
   "success": true,
-  "message": "Reservation received successfully",
+  "message": "Reservation confirmed successfully",
   "data": {
-    "reservationId": "ALAKRAN-1234567890",
+    "reservationId": "ABC123",
     "customer": "Sr. Juan Pérez",
-    "dateTime": "2025-09-03 at 13:00",
+    "dateTime": "2025-12-03 at 20:00",
     "guestCount": 4,
-    "hasBaby": false,
-    "allergies": "gluten",
-    "specialRequests": "mesa junto a la ventana",
-    "status": "pending_confirmation",
-    "createdAt": "2025-11-19T15:08:00.000Z"
+    "status": "confirmed"
   }
 }
 ```
 
-## Vapi Configuration
+## Configuración de Vapi
 
-### Function Tool Configuration (Check Availability)
+### Configuración de Herramienta de Función (Verificar Disponibilidad)
 
-In your Vapi dashboard, configure the function tool:
+En tu panel de Vapi, configura la herramienta de función:
 
-**Server URL:**
+**URL del Servidor:**
 ```
-https://your-domain.com/webhooks/check-availability
+https://tu-url-ngrok.ngrok-free.app/webhooks/check-availability
 ```
 
-**Function Schema:**
+**Esquema de Función:**
 ```json
 {
   "name": "checkAvailabilityALAKRAN",
-  "description": "Check restaurant availability for a specific date, time, and number of guests",
+  "description": "Verifica la disponibilidad del restaurante para una fecha y número de comensales específicos",
   "parameters": {
     "type": "object",
     "properties": {
-      "hora": {
-        "description": "la hora de la reserva. por ejemplo \"la una de la tarde\" son las \"13:00\".",
-        "type": "string",
-        "default": ""
+      "date": {
+        "description": "La fecha de la reserva en formato AAAA-MM-DD. Ejemplo: 2025-12-03",
+        "type": "string"
       },
-      "fecha": {
-        "description": "La fecha donde el usuario quiere hacer la reserva. Por ejemplo el 3 de septiembre de 2025 se enviará como \"2025-09-03\".",
-        "type": "string",
-        "default": ""
-      },
-      "personas": {
-        "description": "numero de personas que atenderan a la reserva.",
-        "type": "number",
-        "default": ""
+      "people": {
+        "description": "Número de personas que asistirán a la reserva",
+        "type": "number"
       }
     },
-    "required": ["hora", "fecha", "personas"]
+    "required": ["date", "people"]
   }
 }
 ```
 
-### End of Call Report Configuration (Reservation Complete)
+### Configuración de Reporte de Fin de Llamada (Reserva Completada)
 
-In your Vapi assistant settings, configure the structured data:
+En la configuración de tu asistente de Vapi, configura los datos estructurados:
 
-**Server URL:**
+**URL del Servidor:**
 ```
-https://your-domain.com/webhooks/reservation-complete
+https://tu-url-ngrok.ngrok-free.app/webhooks/reservation-complete
 ```
 
-**Structured Data Schema:**
+**Esquema de Datos Estructurados:**
 ```json
 {
   "reservation": {
-    "date": "string",
-    "time": "string",
+    "date": "string (formato AAAA-MM-DD)",
+    "time": "string (formato HH:MM)",
     "people": "number",
     "full_name": "string",
     "honorific": "string",
@@ -247,132 +237,68 @@ https://your-domain.com/webhooks/reservation-complete
 }
 ```
 
-## Project Structure
+**Importante:** La fecha DEBE estar en formato ISO (`2025-12-03`), no en texto español (`3 de diciembre`).
+
+## Estructura del Proyecto
 
 ```
 alakran/
 ├── src/
+│   ├── index.ts                        # Configuración de Express
 │   ├── controllers/
-│   │   ├── availabilityController.ts    # Check availability logic
-│   │   └── reservationController.ts     # Reservation completion logic
+│   │   ├── availabilityController.ts   # Lógica de verificar disponibilidad
+│   │   └── reservationController.ts    # Lógica de completar reserva
+│   ├── services/
+│   │   └── theForkScraper.ts           # Automatización de TheFork con Playwright
 │   ├── middleware/
-│   │   ├── logger.ts                    # Request/response logging
-│   │   └── validator.ts                 # Request validation & auth
+│   │   ├── logger.ts                   # Registro de peticiones/respuestas
+│   │   └── validator.ts                # Validación de peticiones y autenticación
 │   ├── routes/
-│   │   └── webhooks.ts                  # Webhook route definitions
-│   ├── types/
-│   │   └── vapi.ts                      # TypeScript types & Zod schemas
-│   └── index.ts                         # Express app setup
-├── .env.example                         # Environment variables template
+│   │   └── webhooks.ts                 # Definiciones de rutas de webhook
+│   └── types/
+│       └── vapi.ts                     # Tipos TypeScript y esquemas Zod
+├── .env.example                        # Plantilla de variables de entorno
 ├── .gitignore
 ├── package.json
 ├── tsconfig.json
+├── GUIDE.md                            # Guía detallada de instalación
 └── README.md
 ```
 
-## Integration with Restaurant API
+## Seguridad
 
-Currently, the service logs and validates incoming data but does not persist reservations. To integrate with your restaurant's reservation system:
+- El servicio incluye autenticación opcional con secreto de webhook
+- Configura `WEBHOOK_SECRET` en tu archivo `.env`
+- Vapi necesitará enviar este secreto en el header `X-Webhook-Secret` o como token Bearer
 
-1. Update `src/controllers/availabilityController.ts`:
-   - Replace the simulated availability check with actual API call
-   - Import your restaurant API client
-   - Call the API in the `checkAvailability` function
+## Registro de Logs
 
-2. Update `src/controllers/reservationController.ts`:
-   - Replace the simulated reservation creation with actual API call
-   - Import your restaurant API client
-   - Call the API in the `completeReservation` function
+Todas las peticiones y respuestas de webhook se registran en la consola para propósitos de depuración. Revisa los logs para verificar:
+- Formato de datos de webhook entrantes
+- Resultados de validación
+- Respuestas de la API de TheFork
 
-Example:
-```typescript
-// In availabilityController.ts
-import { restaurantAPI } from './api/restaurant';
+## Despliegue en Producción
 
-const availability = await restaurantAPI.checkAvailability({
-  date: params.fecha,
-  time: params.hora,
-  numberOfGuests: params.personas
-});
-```
+Para despliegue en producción:
 
-## Testing
-
-You can test the webhooks using curl:
-
-### Test Check Availability:
-```bash
-curl -X POST http://localhost:3000/webhooks/check-availability \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": {
-      "type": "function-call",
-      "functionCall": {
-        "name": "checkAvailabilityALAKRAN",
-        "id": "test-123",
-        "parameters": {
-          "hora": "13:00",
-          "fecha": "2025-09-03",
-          "personas": 4
-        }
-      }
-    }
-  }'
-```
-
-### Test Reservation Complete:
-```bash
-curl -X POST http://localhost:3000/webhooks/reservation-complete \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": {
-      "type": "end-of-call-report",
-      "structuredData": {
-        "reservation": {
-          "date": "2025-09-03",
-          "time": "13:00",
-          "people": 4,
-          "full_name": "Juan Pérez",
-          "honorific": "Sr.",
-          "baby": false,
-          "allergies": "gluten",
-          "special_requests": "mesa junto a la ventana"
-        }
-      }
-    }
-  }'
-```
-
-## Security
-
-- The service includes optional webhook secret authentication
-- Set `WEBHOOK_SECRET` in your `.env` file
-- Vapi will need to send this secret in the `X-Webhook-Secret` header or as a Bearer token
-
-## Logging
-
-All webhook requests and responses are logged to the console for debugging purposes. Check the logs to verify:
-- Incoming webhook data format
-- Validation results
-- Simulated API responses
-
-## Deployment
-
-For production deployment:
-
-1. Build the TypeScript code:
+1. Compilar el código TypeScript:
 ```bash
 npm run build
 ```
 
-2. Set production environment variables
+2. Configurar variables de entorno de producción
 
-3. Deploy to your preferred hosting platform (AWS, Heroku, Railway, etc.)
+3. Desplegar en tu plataforma de hosting preferida (AWS, Heroku, Railway, etc.)
 
-4. Update Vapi webhook URLs to point to your production domain
+4. Actualizar las URLs de webhook en Vapi para apuntar a tu dominio de producción
 
-5. Ensure your server is accessible from Vapi's servers
+5. Asegurar que tu servidor sea accesible desde los servidores de Vapi
 
-## License
+## Documentación
+
+- [GUIDE.md](GUIDE.md) - Guía detallada paso a paso para principiantes
+
+## Licencia
 
 MIT

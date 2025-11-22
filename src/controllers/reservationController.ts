@@ -81,7 +81,7 @@ export const completeReservation = async (req: Request, res: Response) => {
         firstName,
         lastName,
         // email: 'hola@haciendalakran.com', // Use restaurant email or extract from structured data
-        email: 'liancole0018@gmail.com',
+        email: 'hola@haciendalakran.com',
         phone: customerPhone,
         honorific: reservationData.honorific,
         specialRequests: specialRequests || undefined
