@@ -1,6 +1,7 @@
 # Use Playwright's official image which has all dependencies pre-installed
 # Based on Node 20 (noble = Ubuntu 24.04)
-FROM mcr.microsoft.com/playwright:v1.49.0-noble
+# Match the playwright version in package.json (1.56.1)
+FROM mcr.microsoft.com/playwright:v1.56.1-noble
 
 WORKDIR /app
 
