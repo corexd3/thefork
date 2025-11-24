@@ -29,10 +29,15 @@ export const completeReservation = async (req: Request, res: Response) => {
     console.log('- Allergies:', reservationData.allergies);
     console.log('- Special Requests:', reservationData.special_requests);
 
-    // FIX: If Vapi sends wrong year (2023/2024), auto-correct to 2025
+    // FIX: Auto-correct year to current year if it's not valid
+    const currentYear = new Date().getFullYear();
     let correctedDate = reservationData.date;
-    if (reservationData.date.startsWith('2023') || reservationData.date.startsWith('2024')) {
-      correctedDate = reservationData.date.replace(/^202[34]/, '2025');
+    const yearFromDate = parseInt(reservationData.date.split('-')[0]);
+
+    // If year is not current year or next year, auto-correct to current year
+    if (yearFromDate < currentYear || yearFromDate > currentYear + 1) {
+      const monthDay = reservationData.date.substring(4); // Gets "-MM-DD" part
+      correctedDate = `${currentYear}${monthDay}`;
       console.log('⚠️  Auto-corrected year from', reservationData.date, 'to', correctedDate);
     }
 

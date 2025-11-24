@@ -53,10 +53,15 @@ export const checkAvailability = async (req: Request, res: Response) => {
     console.log('- Hora (Time):', params.hora);
     console.log('- Personas (People):', params.personas);
 
-    // FIX: If Vapi sends wrong year (2023/2024), auto-correct to 2025
+    // FIX: Auto-correct year to current year if it's not valid
+    const currentYear = new Date().getFullYear();
     let correctedDate = params.fecha;
-    if (params.fecha.startsWith('2023') || params.fecha.startsWith('2024')) {
-      correctedDate = params.fecha.replace(/^202[34]/, '2025');
+    const yearFromDate = parseInt(params.fecha.split('-')[0]);
+
+    // If year is not current year or next year, auto-correct to current year
+    if (yearFromDate < currentYear || yearFromDate > currentYear + 1) {
+      const monthDay = params.fecha.substring(4); // Gets "-MM-DD" part
+      correctedDate = `${currentYear}${monthDay}`;
       console.log('⚠️  Auto-corrected year from', params.fecha, 'to', correctedDate);
     }
 
