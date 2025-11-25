@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { ReservationData, VapiWebhookResponse } from '../types/vapi';
 import { theForkScraper } from '../services/theForkScraper';
+import { parseSpanishDate } from '../utils/dateParser';
 
 /**
  * Controller for handling completed reservations
@@ -29,33 +30,28 @@ export const completeReservation = async (req: Request, res: Response) => {
     console.log('- Allergies:', reservationData.allergies);
     console.log('- Special Requests:', reservationData.special_requests);
 
-    // FIX: Auto-correct date format
+    // FIX: Parse and correct date format
     const currentYear = new Date().getFullYear();
-    let correctedDate = reservationData.date;
+    let correctedDate: string | null;
 
-    // Check if date is in ISO format (YYYY-MM-DD)
-    const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
+    // Try to parse the date (handles ISO and Spanish formats)
+    correctedDate = parseSpanishDate(reservationData.date);
 
-    if (isoDatePattern.test(reservationData.date)) {
-      // Date is in ISO format, check year
-      const yearFromDate = parseInt(reservationData.date.split('-')[0]);
-
-      // If year is not current year or next year, auto-correct to current year
-      if (yearFromDate < currentYear || yearFromDate > currentYear + 1) {
-        const monthDay = reservationData.date.substring(4); // Gets "-MM-DD" part
-        correctedDate = `${currentYear}${monthDay}`;
-        console.log('⚠️  Auto-corrected year from', reservationData.date, 'to', correctedDate);
-      }
-    } else {
-      // Date is NOT in ISO format (e.g., "3 de diciembre", "diciembre")
-      console.error('❌ Invalid date format received:', reservationData.date);
-      console.error('Expected format: YYYY-MM-DD (e.g., 2025-12-03)');
-
+    if (!correctedDate) {
+      console.error('❌ Could not parse date:', reservationData.date);
       const response: VapiWebhookResponse = {
         success: false,
-        message: `Invalid date format: "${reservationData.date}". Expected YYYY-MM-DD format.`
+        message: `Invalid date format: "${reservationData.date}". Could not parse date.`
       };
       return res.status(400).json(response);
+    }
+
+    // Check if year needs correction
+    const yearFromDate = parseInt(correctedDate.split('-')[0]);
+    if (yearFromDate < currentYear || yearFromDate > currentYear + 1) {
+      const monthDay = correctedDate.substring(4);
+      correctedDate = `${currentYear}${monthDay}`;
+      console.log('⚠️  Auto-corrected year from', reservationData.date, 'to', correctedDate);
     }
 
     // Validate the received data
