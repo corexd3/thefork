@@ -29,16 +29,33 @@ export const completeReservation = async (req: Request, res: Response) => {
     console.log('- Allergies:', reservationData.allergies);
     console.log('- Special Requests:', reservationData.special_requests);
 
-    // FIX: Auto-correct year to current year if it's not valid
+    // FIX: Auto-correct date format
     const currentYear = new Date().getFullYear();
     let correctedDate = reservationData.date;
-    const yearFromDate = parseInt(reservationData.date.split('-')[0]);
 
-    // If year is not current year or next year, auto-correct to current year
-    if (yearFromDate < currentYear || yearFromDate > currentYear + 1) {
-      const monthDay = reservationData.date.substring(4); // Gets "-MM-DD" part
-      correctedDate = `${currentYear}${monthDay}`;
-      console.log('⚠️  Auto-corrected year from', reservationData.date, 'to', correctedDate);
+    // Check if date is in ISO format (YYYY-MM-DD)
+    const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
+
+    if (isoDatePattern.test(reservationData.date)) {
+      // Date is in ISO format, check year
+      const yearFromDate = parseInt(reservationData.date.split('-')[0]);
+
+      // If year is not current year or next year, auto-correct to current year
+      if (yearFromDate < currentYear || yearFromDate > currentYear + 1) {
+        const monthDay = reservationData.date.substring(4); // Gets "-MM-DD" part
+        correctedDate = `${currentYear}${monthDay}`;
+        console.log('⚠️  Auto-corrected year from', reservationData.date, 'to', correctedDate);
+      }
+    } else {
+      // Date is NOT in ISO format (e.g., "3 de diciembre", "diciembre")
+      console.error('❌ Invalid date format received:', reservationData.date);
+      console.error('Expected format: YYYY-MM-DD (e.g., 2025-12-03)');
+
+      const response: VapiWebhookResponse = {
+        success: false,
+        message: `Invalid date format: "${reservationData.date}". Expected YYYY-MM-DD format.`
+      };
+      return res.status(400).json(response);
     }
 
     // Validate the received data
