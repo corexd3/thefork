@@ -4,6 +4,90 @@ import { theForkScraper } from '../services/theForkScraper';
 import { parseSpanishDate } from '../utils/dateParser';
 
 /**
+ * Process reservation logic (shared between endpoints)
+ * Returns the result without sending HTTP response
+ */
+export const processReservation = async (message: any): Promise<{ success: boolean; error?: string }> => {
+  try {
+    const reservationData: ReservationData = message.analysis.structuredData.reservation;
+    const customerPhone = message.call?.customer?.number || 'Unknown';
+
+    console.log('Processing reservation:');
+    console.log('- Phone Number:', customerPhone);
+    console.log('- Date:', reservationData.date);
+    console.log('- Time:', reservationData.time);
+    console.log('- People:', reservationData.people);
+    console.log('- Full Name:', reservationData.full_name);
+
+    // Parse and correct date format
+    const currentYear = new Date().getFullYear();
+    let correctedDate = parseSpanishDate(reservationData.date);
+
+    if (!correctedDate) {
+      console.error('❌ Could not parse date:', reservationData.date);
+      return { success: false, error: `Invalid date format: "${reservationData.date}"` };
+    }
+
+    // Check if year needs correction
+    const yearFromDate = parseInt(correctedDate.split('-')[0]);
+    if (yearFromDate < currentYear || yearFromDate > currentYear + 1) {
+      const monthDay = correctedDate.substring(4);
+      correctedDate = `${currentYear}${monthDay}`;
+      console.log('⚠️  Auto-corrected year to', correctedDate);
+    }
+
+    // Validate the received data
+    if (!correctedDate || !reservationData.time || reservationData.people <= 0 || !reservationData.full_name) {
+      console.error('Incomplete reservation data!');
+      return { success: false, error: 'Incomplete reservation data' };
+    }
+
+    // Parse customer name
+    const nameParts = reservationData.full_name.trim().split(' ');
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ') || nameParts[0];
+
+    // Build special requests string
+    let specialRequests = reservationData.special_requests || '';
+    if (reservationData.baby) {
+      specialRequests = specialRequests ? `${specialRequests}. Llegará con bebé.` : 'Llegará con bebé.';
+    }
+    if (reservationData.allergies && reservationData.allergies !== 'none') {
+      specialRequests = specialRequests ? `${specialRequests}. Alergias: ${reservationData.allergies}` : `Alergias: ${reservationData.allergies}`;
+    }
+
+    // Make reservation using TheFork scraper
+    const reservationResult = await theForkScraper.makeReservation(
+      correctedDate,
+      reservationData.time,
+      reservationData.people,
+      {
+        firstName,
+        lastName,
+        email: 'hola@haciendalakran.com',
+        phone: customerPhone,
+        honorific: reservationData.honorific,
+        specialRequests: specialRequests || undefined
+      }
+    );
+
+    if (!reservationResult.success) {
+      console.error('✗ Reservation failed:', reservationResult.message);
+      return { success: false, error: reservationResult.message };
+    }
+
+    console.log('✓ Reservation created successfully!');
+    console.log('Confirmation:', reservationResult.confirmationNumber || `ALAKRAN-${Date.now()}`);
+
+    return { success: true };
+
+  } catch (error) {
+    console.error('Error processing reservation:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+};
+
+/**
  * Controller for handling completed reservations
  * This is called at the end of the conversation when Vapi sends the structured data
  */

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { completeReservation } from './reservationController';
+import { processReservation } from './reservationController';
 
 /**
  * Get Spanish day of week name
@@ -125,13 +125,21 @@ export const handleAssistantRequest = async (req: Request, res: Response) => {
         return res.status(200).json({});
 
       case 'end-of-call-report':
-        // Call ended - process reservation if structured data exists
+        // Call ended - process reservation silently if structured data exists
+        // Return empty response so assistant doesn't read JSON aloud
         console.log('End of Call Report received');
         if (message.analysis?.structuredData?.reservation) {
-          console.log('Reservation data found, processing...');
-          return completeReservation(req, res);
+          console.log('Reservation data found, processing silently...');
+          const result = await processReservation(message);
+          if (result.success) {
+            console.log('✓ Reservation processed successfully');
+          } else {
+            console.error('✗ Reservation processing failed:', result.error);
+          }
+        } else {
+          console.log('No reservation data in end-of-call report');
         }
-        console.log('No reservation data in end-of-call report');
+        // Always return empty response for end-of-call-report
         return res.status(200).json({});
 
       case 'function-call':
