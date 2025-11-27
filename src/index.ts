@@ -34,6 +34,7 @@ app.get('/', (req: Request, res: Response) => {
     version: '1.0.0',
     endpoints: {
       health: '/health',
+      assistantRequest: 'POST /webhooks/assistant-request (Vapi Server URL)',
       checkAvailability: 'POST /webhooks/check-availability',
       reservationComplete: 'POST /webhooks/reservation-complete'
     }
@@ -68,6 +69,7 @@ app.listen(PORT, () => {
   console.log('\nAvailable endpoints:');
   console.log(`- GET  http://localhost:${PORT}/`);
   console.log(`- GET  http://localhost:${PORT}/health`);
+  console.log(`- POST http://localhost:${PORT}/webhooks/assistant-request (Server URL for Vapi)`);
   console.log(`- POST http://localhost:${PORT}/webhooks/check-availability`);
   console.log(`- POST http://localhost:${PORT}/webhooks/reservation-complete`);
   console.log('========================================\n');
