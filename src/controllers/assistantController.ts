@@ -59,6 +59,8 @@ EJEMPLOS:
  */
 function handleAssistantRequestEvent(message: any): object {
   console.log('=== Assistant Request Event (Call Start) ===');
+  console.log('🕐 Server time:', new Date().toISOString());
+  console.log('📅 Current year:', new Date().getFullYear());
 
   // Log call information
   if (message?.call) {
@@ -69,6 +71,7 @@ function handleAssistantRequestEvent(message: any): object {
   // Generate dynamic date context
   const dateContext = generateDateContext();
   console.log('Injecting current date context into assistant prompt');
+  console.log('Date context being injected:\n', dateContext);
 
   // Return the assistant modification
   // This will be MERGED with the existing assistant configuration from Vapi dashboard
@@ -103,15 +106,22 @@ function handleAssistantRequestEvent(message: any): object {
 export const handleAssistantRequest = async (req: Request, res: Response) => {
   try {
     const { message } = req.body;
-    const messageType = message?.type;
+    // Vapi may send type at root level OR inside message object
+    const messageType = req.body.type || message?.type;
 
     console.log('=== Vapi Server URL Webhook ===');
     console.log('Event Type:', messageType || 'unknown');
+    console.log('Raw request body keys:', Object.keys(req.body));
+
+    // Debug: Log full body for assistant-request to understand structure
+    if (!messageType || messageType === 'assistant-request') {
+      console.log('Full request body:', JSON.stringify(req.body, null, 2).substring(0, 1000));
+    }
 
     switch (messageType) {
       case 'assistant-request':
         // Call is starting - inject date context
-        const assistantResponse = handleAssistantRequestEvent(message);
+        const assistantResponse = handleAssistantRequestEvent(message || req.body);
         return res.status(200).json(assistantResponse);
 
       case 'status-update':
